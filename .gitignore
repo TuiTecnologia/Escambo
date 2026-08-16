@@ -1,2 +1,11 @@
 .env
+.env.*
+!.env.example
 node_modules/
+dist/
+.next/
+out/
+build/
+coverage/
+*.log
+.claude/

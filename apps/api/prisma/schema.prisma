@@ -1,0 +1,378 @@
+// Modelo de dados do Escambo — ver ROADMAP.md, seção 15.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ListingType {
+  PRODUCT
+  SERVICE
+}
+
+enum ListingCondition {
+  NEW
+  LIKE_NEW
+  USED_GOOD
+  USED_FAIR
+}
+
+enum ListingStatus {
+  ACTIVE
+  PAUSED
+  IN_NEGOTIATION
+  TRADED
+  EXPIRED
+  REMOVED
+}
+
+enum DeliveryMethod {
+  PICKUP
+  SHIPPING
+  BOTH
+}
+
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum ProposalItemSide {
+  OFFERED
+  DESIRED
+}
+
+enum TradeStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  DISPUTED
+  CANCELLED
+}
+
+enum ReportTargetType {
+  USER
+  LISTING
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum DisputeStatus {
+  OPEN
+  MEDIATION
+  RESOLVED
+}
+
+enum VerificationChannel {
+  EMAIL
+  PHONE
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  name                String
+  email               String    @unique
+  phone               String    @unique
+  passwordHash        String
+  emailVerifiedAt     DateTime?
+  phoneVerifiedAt     DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  profile             Profile?
+  listings            Listing[]
+  proposalsSent       Proposal[]        @relation("ProposalSender")
+  tradeInterests      TradeInterest[]
+  reviewsGiven        Review[]          @relation("ReviewAuthor")
+  reviewsReceived     Review[]          @relation("ReviewSubject")
+  reportsFiled        Report[]          @relation("ReportAuthor")
+  blocksInitiated     Block[]           @relation("BlockInitiator")
+  blocksReceived      Block[]           @relation("BlockTarget")
+  disputesOpened      Dispute[]
+  verificationCodes   VerificationCode[]
+  messages            Message[]
+  auditLogEntries     AuditLog[]
+
+  @@map("users")
+}
+
+model Profile {
+  userId            String   @id
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photoUrl          String?
+  country           String
+  state             String
+  city              String
+  postalCode        String
+  radiusMaxKm       Int      @default(10)
+  tradePreferences  String[] @default([])
+  latitude          Float?
+  longitude         Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Category {
+  id             String     @id @default(cuid())
+  name           String
+  type           ListingType
+  parentId       String?
+  parent         Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id])
+  subcategories  Category[] @relation("CategoryToSubcategory")
+
+  listings       Listing[]
+  desiredItems   DesiredItem[]
+
+  @@map("categories")
+}
+
+model Listing {
+  id                     String            @id @default(cuid())
+  userId                 String
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                  String
+  description            String
+  categoryId             String
+  category               Category          @relation(fields: [categoryId], references: [id])
+  condition              ListingCondition
+  estimatedValue         Decimal           @db.Decimal(10, 2)
+  acceptsOtherProposals  Boolean           @default(true)
+  availability           String?
+  deliveryMethod         DeliveryMethod
+  radiusMaxKm            Int?
+  status                 ListingStatus     @default(ACTIVE)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  images                 ListingImage[]
+  desiredItems           DesiredItem[]
+  matchesAsA             Match[]           @relation("MatchListingA")
+  matchesAsB             Match[]           @relation("MatchListingB")
+  proposalItems          ProposalItem[]
+
+  @@map("listings")
+}
+
+model ListingImage {
+  id                String  @id @default(cuid())
+  listingId         String
+  listing           Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url               String
+  order             Int     @default(0)
+  perceptualHash    String?
+
+  @@map("listing_images")
+}
+
+model DesiredItem {
+  id                    String    @id @default(cuid())
+  listingId             String
+  listing               Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  desiredCategoryId     String?
+  desiredCategory       Category? @relation(fields: [desiredCategoryId], references: [id])
+  freeDescription       String?
+
+  @@map("desired_items")
+}
+
+model Match {
+  id               String   @id @default(cuid())
+  listingAId       String
+  listingA         Listing  @relation("MatchListingA", fields: [listingAId], references: [id], onDelete: Cascade)
+  listingBId       String
+  listingB         Listing  @relation("MatchListingB", fields: [listingBId], references: [id], onDelete: Cascade)
+  score            Float
+  scoreBreakdown   Json
+  createdAt        DateTime @default(now())
+
+  tradeInterests   TradeInterest[]
+  proposals        Proposal[]
+
+  @@unique([listingAId, listingBId])
+  @@map("matches")
+}
+
+model TradeInterest {
+  id        String   @id @default(cuid())
+  matchId   String
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  createdAt DateTime @default(now())
+
+  @@map("trade_interests")
+}
+
+model Proposal {
+  id               String            @id @default(cuid())
+  matchId          String
+  match            Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  senderId         String
+  sender           User              @relation("ProposalSender", fields: [senderId], references: [id])
+  status           ProposalStatus    @default(PENDING)
+  createdAt        DateTime          @default(now())
+  expiresAt        DateTime
+
+  items            ProposalItem[]
+  counterProposals CounterProposal[]
+  conversation     Conversation?
+  trade            Trade?
+
+  @@map("proposals")
+}
+
+model ProposalItem {
+  id          String            @id @default(cuid())
+  proposalId  String
+  proposal    Proposal          @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  listingId   String
+  listing     Listing           @relation(fields: [listingId], references: [id])
+  side        ProposalItemSide
+
+  @@map("proposal_items")
+}
+
+model CounterProposal {
+  id                  String   @id @default(cuid())
+  proposalOriginalId  String
+  proposalOriginal    Proposal @relation(fields: [proposalOriginalId], references: [id], onDelete: Cascade)
+  round               Int
+  items               Json
+  createdAt           DateTime @default(now())
+
+  @@map("counter_proposals")
+}
+
+model Conversation {
+  id               String    @id @default(cuid())
+  proposalId       String    @unique
+  proposal         Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  participantAId   String
+  participantBId   String
+  createdAt        DateTime  @default(now())
+
+  messages         Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  content        String
+  sentAt         DateTime     @default(now())
+  readAt         DateTime?
+
+  @@map("messages")
+}
+
+model Trade {
+  id            String      @id @default(cuid())
+  proposalId    String      @unique
+  proposal      Proposal    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  confirmedA    Boolean     @default(false)
+  confirmedB    Boolean     @default(false)
+  status        TradeStatus @default(PENDING_CONFIRMATION)
+  completedAt   DateTime?
+
+  reviews       Review[]
+  dispute       Dispute?
+
+  @@map("trades")
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  tradeId      String
+  trade        Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  reviewerId   String
+  reviewer     User     @relation("ReviewAuthor", fields: [reviewerId], references: [id])
+  revieweeId   String
+  reviewee     User     @relation("ReviewSubject", fields: [revieweeId], references: [id])
+  rating       Int
+  comment      String?
+  tags         String[] @default([])
+  createdAt    DateTime @default(now())
+
+  @@unique([tradeId, reviewerId])
+  @@map("reviews")
+}
+
+model Report {
+  id            String            @id @default(cuid())
+  reporterId    String
+  reporter      User              @relation("ReportAuthor", fields: [reporterId], references: [id])
+  targetType    ReportTargetType
+  targetId      String
+  category      String
+  evidenceUrls  String[]          @default([])
+  status        ReportStatus      @default(OPEN)
+  createdAt     DateTime          @default(now())
+
+  @@map("reports")
+}
+
+model Block {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("BlockInitiator", fields: [userId], references: [id], onDelete: Cascade)
+  blockedId   String
+  blocked     User     @relation("BlockTarget", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, blockedId])
+  @@map("blocks")
+}
+
+model Dispute {
+  id           String        @id @default(cuid())
+  tradeId      String        @unique
+  trade        Trade         @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  openedById   String
+  openedBy     User          @relation(fields: [openedById], references: [id])
+  reason       String
+  status       DisputeStatus @default(OPEN)
+  resolution   String?
+  createdAt    DateTime      @default(now())
+
+  @@map("disputes")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model VerificationCode {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel     VerificationChannel
+  code        String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@map("verification_codes")
+}
