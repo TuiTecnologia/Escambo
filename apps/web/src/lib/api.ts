@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
 
 export class ApiError extends Error {
   constructor(
@@ -52,6 +52,70 @@ export type Profile = {
   tradePreferences: string[];
 };
 
+export type Category = {
+  id: string;
+  name: string;
+  type: "PRODUCT" | "SERVICE";
+};
+
+export type ListingCondition = "NEW" | "LIKE_NEW" | "USED_GOOD" | "USED_FAIR";
+export type DeliveryMethod = "PICKUP" | "SHIPPING" | "BOTH";
+export type ListingStatus =
+  | "ACTIVE"
+  | "PAUSED"
+  | "IN_NEGOTIATION"
+  | "TRADED"
+  | "EXPIRED"
+  | "REMOVED";
+
+export type Listing = {
+  id: string;
+  title: string;
+  description: string;
+  condition: ListingCondition;
+  estimatedValue: string;
+  acceptsOtherProposals: boolean;
+  availability: string | null;
+  deliveryMethod: DeliveryMethod;
+  radiusMaxKm: number | null;
+  status: ListingStatus;
+  createdAt: string;
+  category: Category;
+  images: { id: string; url: string; order: number }[];
+  desiredItems: { id: string; freeDescription: string | null }[];
+};
+
+export type CreateListingInput = {
+  title: string;
+  description: string;
+  categoryId: string;
+  condition: ListingCondition;
+  estimatedValue: number;
+  acceptsOtherProposals?: boolean;
+  availability?: string;
+  deliveryMethod: DeliveryMethod;
+  radiusMaxKm?: number;
+  desiredDescription?: string;
+};
+
+async function uploadListingImages(token: string, listingId: string, files: File[]) {
+  const form = new FormData();
+  for (const file of files) form.append("files", file);
+
+  const res = await fetch(`${API_URL}/listings/${listingId}/images`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const message = data?.message ?? "Não foi possível enviar as fotos.";
+    throw new ApiError(Array.isArray(message) ? message.join(" ") : message, res.status);
+  }
+  return data as Listing;
+}
+
 export const api = {
   register: (body: { name: string; email: string; phone: string; password: string }) =>
     request<AuthResponse>("/auth/register", { method: "POST", body }),
@@ -82,4 +146,15 @@ export const api = {
       tradePreferences?: string[];
     },
   ) => request<Profile>("/profiles/me", { method: "PUT", token, body }),
+
+  getCategories: () => request<Category[]>("/categories"),
+
+  createListing: (token: string, body: CreateListingInput) =>
+    request<Listing>("/listings", { method: "POST", token, body }),
+
+  getMyListings: (token: string) => request<Listing[]>("/listings/mine", { token }),
+
+  getListing: (id: string) => request<Listing>(`/listings/${id}`),
+
+  uploadListingImages: uploadListingImages,
 };

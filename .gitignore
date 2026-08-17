@@ -9,3 +9,4 @@ build/
 coverage/
 *.log
 .claude/
+apps/api/uploads/

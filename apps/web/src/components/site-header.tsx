@@ -23,6 +23,9 @@ export function SiteHeader() {
           </Link>
           {session === undefined ? null : session ? (
             <>
+              <Link href="/anuncios" className="hidden hover:text-foreground sm:inline">
+                Meus anúncios
+              </Link>
               <Link href="/perfil" className="hover:text-foreground">
                 {session.name.split(" ")[0]}
               </Link>
