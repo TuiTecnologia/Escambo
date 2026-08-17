@@ -1,3 +1,5 @@
+import { SiteHeader } from "@/components/site-header";
+
 const steps = [
   {
     n: "01",
@@ -43,22 +45,7 @@ const differentiators = [
 export default function Home() {
   return (
     <div className="flex flex-col flex-1 bg-background text-foreground">
-      <header className="border-b border-border">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-5">
-          <span className="text-lg font-semibold tracking-tight">Escambo</span>
-          <nav className="hidden gap-8 text-sm text-muted sm:flex">
-            <a href="#como-funciona" className="hover:text-foreground">
-              Como funciona
-            </a>
-            <a href="#diferenciais" className="hover:text-foreground">
-              Diferenciais
-            </a>
-            <a href="#contato" className="hover:text-foreground">
-              Contato
-            </a>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1">
         <section className="mx-auto w-full max-w-5xl px-6 pt-20 pb-16 sm:pt-28 sm:pb-24">

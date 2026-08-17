@@ -8,7 +8,7 @@ export class RegisterDto {
   @IsEmail()
   email: string;
 
-  @IsPhoneNumber()
+  @IsPhoneNumber('BR')
   phone: string;
 
   @IsString()
